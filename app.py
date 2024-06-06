@@ -1,14 +1,17 @@
-from fastapi import FastAPI, UploadFile, File
+import streamlit as st
 
-app = FastAPI()
 
-@app.post("/upload/")
-async def upload_file(file: UploadFile = File(...)):
-    content = await file.read()
-    # Save the file and process it as shown above
-    # Call functions: pdf_to_text_and_images, extract_key_values, classify_document, etc.
-    return {"filename": file.filename}
+with st.sidebar:
+    st.title("LLM Chat App")
+    st.markdown('''
+    ### About
 
-if __name__ == "__main__":
-    import uvicorn
-    uvicorn.run(app, host="0.0.0.0", port=8000)
+    This app is LLm-powered chatbot built using:
+    - Streamlit
+    - Langchain
+    - OpenAI
+    ''')
+    add_vertical_space(5)
+    st.write("Developed by Chanchala Gorale")
+
+
