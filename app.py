@@ -8,7 +8,7 @@ from PIL import Image
 import cv2
 from dotenv import load_dotenv
 import pickle
-from langchain.text_splitter import RecursiveCharacterTextSplitter
+from langchain_text_splitters import RecursiveCharacterTextSplitter
 from langchain_openai import OpenAIEmbeddings
 from langchain_community.vectorstores import FAISS
 import os
@@ -16,7 +16,7 @@ from langchain_openai import OpenAI
 from langchain.chains.question_answering import load_qa_chain
 from langchain.callbacks import get_openai_callback
 from transformers import pipeline
-from pdf2image import convert_from_path
+
 import re
 
 pytesseract.pytesseract.tesseract_cmd = '/opt/homebrew/Cellar/tesseract/5.3.4_1/bin/tesseract'
@@ -51,22 +51,6 @@ def pdf_to_text_and_images(pdf_path):
     return text_content
 
 
-def extract_text_from_pdf(file):
-    pdf_reader = PyPDF2.PdfReader(file)
-
-    text = ""
-    for page in pdf_reader.pages:
-            text += page.extract_text()
-
-    return text
-
-def extract_images_and_text_from_pdf(file):
-    images = convert_from_path(file)
-    text = ""
-    for image in images:
-        text += pytesseract.image_to_string(image)
-    return text
-
 def extract_key_value_pairs(text):
     # A simple regex-based approach for key-value pair extraction
     key_value_pattern = re.compile(r'(\b\w+):\s*(.+)')
@@ -74,6 +58,7 @@ def extract_key_value_pairs(text):
     return key_value_pairs
 
 def main():
+    load_dotenv()
     st.header("📃 Doc GPT")
 
     st.write("Hello!")
@@ -86,38 +71,36 @@ def main():
     if pdf is not None:
         
         #extract text
-        text1 = pdf_to_text_and_images(pdf)
-        ocr_text ="" # extract_images_and_text_from_pdf(os.path.join("tempDir", pdf.name))
-        text = text1 + "\n" + ocr_text
-
-        st.write("Text extracted!")
-        st.write(text)
-
+        text = pdf_to_text_and_images(pdf)
         key_value_pairs = extract_key_value_pairs(text)
 
-        st.write("key_value_pairs extracted!")
-        st.write(key_value_pairs)
 
         #summarieze text
-        # summarizer = pipeline("summarization")
-        # summary = summarizer(text, max_length=150, min_length=30, do_sample=False)
+        summarizer = pipeline("summarization")
+        summary = summarizer(text, max_length=150, min_length=30, do_sample=False)
 
-        # st.title("Summary:")
-        # st.write(summary[0]['summary_text'])
-        # st.write(key_value_pairs)
+        st.title("Summary:")
+        st.write(summary[0]['summary_text'])
+        st.write(key_value_pairs)
  
-        # text_splitter = RecursiveCharacterTextSplitter(
-        #     chunk_size=1000,
-        #     chunk_overlap=200,
-        #     length_function=len
-        #     )
+        text_splitter = RecursiveCharacterTextSplitter(
+        chunk_size=100,
+        chunk_overlap=20,
+        length_function=len,
+        is_separator_regex=False,
+        )
         
-        # chunks = text_splitter.split_text(text=text)
+        chunks = text_splitter.split_text(text=text)
  
+        st.write(chunks)
+
         # # # embeddings
-        # store_name = pdf.name[:-4]
-        # st.write(f'{store_name}')
-        # # st.write(chunks)
+        store_name = pdf.name[:-4]
+        st.write(f'{store_name}')
+
+        # st.write(chunks)
+        embeddings = OpenAIEmbeddings()
+        VectorStore = FAISS.from_texts(chunks, embedding=embeddings)
  
         # if os.path.exists(f"{store_name}.pkl"):
         #     try:
@@ -126,31 +109,32 @@ def main():
 
         #     except (EOFError, FileNotFoundError) as e:
         #         embeddings = OpenAIEmbeddings()
-        #         VectorStore = FAISS.from_texts(chunks, embedding=embeddings)
+        #         VectorStore = FAISS.from_texts(chunks, embedding=embeddings).docstore._dict
+
+                
         #         with open(f"{store_name}.pkl", "wb") as f:
         #             pickle.dump(VectorStore, f)
-        #     # st.write('Embeddings Loaded from the Disk')s
+
         # else:
         #     embeddings = OpenAIEmbeddings()
-        #     VectorStore = FAISS.from_texts(chunks, embedding=embeddings)
+        #     VectorStore = FAISS.from_texts(chunks, embedding=embeddings).docstore._dict
         #     with open(f"{store_name}.pkl", "wb") as f:
         #         pickle.dump(VectorStore, f)
  
   
  
         # # Accept user questions/query
-        # query = st.text_input("Ask questions about your PDF file:")
-        # # st.write(query)
+        query = st.text_input("Ask questions about your PDF file:")
  
-        # if query:
-        #     docs = VectorStore.similarity_search(query=query, k=3)
+        if query:
+            docs = VectorStore.similarity_search(query=query, k=3)
  
-        #     llm = OpenAI()
-        #     chain = load_qa_chain(llm=llm, chain_type="stuff")
-        #     with get_openai_callback() as cb:
-        #         response = chain.run(input_documents=docs, question=query)
-        #         print(cb)
-        #     st.write(response)
+            llm = OpenAI()
+            chain = load_qa_chain(llm=llm, chain_type="stuff")
+            with get_openai_callback() as cb:
+                response = chain.run(input_documents=docs, question=query)
+                print(cb)
+            st.write(response)
 
 if __name__ == "__main__":
     main()
