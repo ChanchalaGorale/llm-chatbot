@@ -84,9 +84,12 @@ def main():
         text = text1 + "\n" + ocr_text
 
         st.write("Text extracted!")
+        st.write(text)
 
         key_value_pairs = extract_key_value_pairs(text)
 
+        st.write("key_value_pairs extracted!")
+        st.write(key_value_pairs)
 
         #summarieze text
         # summarizer = pipeline("summarization")
