@@ -17,7 +17,6 @@ nltk.download('punkt')
 from nltk.tokenize import sent_tokenize, word_tokenize
 import spacy
 import re
-from langchain_core.documents import Document
 from langdetect import detect
 from transformers import MarianMTModel, MarianTokenizer
 from streamlit_star_rating import st_star_rating
@@ -76,12 +75,12 @@ with st.sidebar:
     - Ask question to retriev specific information from the uploaded document
     ''')
     add_vertical_space(5)
+
     st.write("Developed by Chanchala Gorale . 2024")
 
 
 def pdf_to_text_and_images(pdf_path):
     text_content = ""
-    images = []
 
     with pdfplumber.open(pdf_path) as pdf:
 
@@ -144,19 +143,41 @@ def translate_to_english(text, target_lang):
     translated_text = [tokenizer.decode(t, skip_special_tokens=True) for t in translated]
     return translated_text[0]
 
-def preprocess_text(text, max_length=1024):
-    sentences = text.split('. ')
-    processed_text = ""
-    for sentence in sentences:
-        if len(processed_text.split()) + len(sentence.split()) > max_length:
-            break
-        processed_text += sentence + '. '
-    return processed_text.strip()
+
+
+def get_text_summary(text):    
+    summarizer = pipeline("summarization", model="facebook/bart-large-cnn")
+
+    try:
+        summary = summarizer(text, max_length=150, min_length=30, do_sample=False)
+        
+        return summary[0]['summary_text']
+
+    except IndexError as e:
+        max_length=1024
+        words = text.split()
+        chunks = [' '.join(words[i:i + max_length]) for i in range(0, len(words), max_length)]
+        summaries = []
+
+
+        for chunk in chunks:
+            try:
+                summary = summarizer(chunk, max_length=150, min_length=30, do_sample=False)
+                summaries.append(summary[0]['summary_text'])
+
+            except IndexError as e:
+                print("An error occurred with a chunk:", str(e))
+        
+        
+        summary = " ".join(summaries)
+
+
+        return summary
 
 
 def main():
     load_dotenv()
-    
+
     st.header("📃 Doc GPT")
 
     st.write("Hello!")
@@ -177,11 +198,10 @@ def main():
             text = clean_text(text)
 
         #summarize text
-        summarizer = pipeline("summarization" ,model="facebook/bart-large-cnn")
-        summary = summarizer(preprocess_text(text), max_length=150, min_length=30, do_sample=False)
+        summary=get_text_summary(text)
 
         st.title("Summary:")
-        st.write(summary[0]['summary_text'])
+        st.write(summary)
 
         # tokenize
         #sentences = segment_sentences(text)
@@ -202,7 +222,7 @@ def main():
         target_language = st.selectbox("Choose language to traslate document", languages)
 
         if st.button("Translate"):
-            translation = translate_to_english(text,  target_language)
+            translation = translate_to_english(unclean_text,  target_language)
             st.write(translation)
 
 
