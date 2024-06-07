@@ -16,10 +16,17 @@ from langchain_openai import OpenAI
 from langchain.chains.question_answering import load_qa_chain
 from langchain.callbacks import get_openai_callback
 from transformers import pipeline
-
+import nltk
+nltk.download('punkt')
+from nltk.tokenize import sent_tokenize, word_tokenize
+import spacy
 import re
+from langchain_core.documents import Document
 
 pytesseract.pytesseract.tesseract_cmd = '/opt/homebrew/Cellar/tesseract/5.3.4_1/bin/tesseract'
+
+nlp = spacy.load("en_core_web_sm")
+
 
 with st.sidebar:
     st.title("Doc GPT")
@@ -57,6 +64,33 @@ def extract_key_value_pairs(text):
     key_value_pairs = dict(re.findall(key_value_pattern, text))
     return key_value_pairs
 
+def clean_text(text):
+    # Remove special characters, punctuation, and formatting
+    cleaned_text = re.sub(r'[^\w\s]', '', text)
+    # Normalize to lowercase
+    cleaned_text = cleaned_text.lower()
+    # Remove extra whitespaces
+    cleaned_text = ' '.join(cleaned_text.split())
+    return cleaned_text
+
+# Sentence Segmentation
+def segment_sentences(text):
+    return sent_tokenize(text)
+
+# Tokenization
+def tokenize_text(text):
+    return word_tokenize(text)
+
+def find_entities(text):
+    doc = nlp(text)
+
+    entities={}
+ 
+    for ent in doc.ents:
+        entities[ent.label_] = ent.text
+
+    return entities
+
 def main():
     load_dotenv()
     st.header("📃 Doc GPT")
@@ -72,8 +106,25 @@ def main():
         
         #extract text
         text = pdf_to_text_and_images(pdf)
-        key_value_pairs = extract_key_value_pairs(text)
 
+        cleaned_text = clean_text(text)
+        sentences = segment_sentences(cleaned_text)
+        tokens = [tokenize_text(sentence) for sentence in sentences]
+
+        text = cleaned_text
+
+        entities=find_entities(cleaned_text)
+
+        
+
+        key_value_pairs = extract_key_value_pairs(cleaned_text)
+
+        list_document =[]
+
+        for i in sentences:
+            list_document.append(
+                Document(page_content=i, metadata=dict(page=1)),
+            )
 
         #summarieze text
         summarizer = pipeline("summarization")
@@ -81,7 +132,9 @@ def main():
 
         st.title("Summary:")
         st.write(summary[0]['summary_text'])
-        st.write(key_value_pairs)
+
+        if key_value_pairs:
+            st.write(key_value_pairs)
  
         text_splitter = RecursiveCharacterTextSplitter(
         chunk_size=100,
@@ -89,18 +142,11 @@ def main():
         length_function=len,
         is_separator_regex=False,
         )
-        
-        chunks = text_splitter.split_text(text=text)
  
-        st.write(chunks)
-
         # # # embeddings
         store_name = pdf.name[:-4]
-        st.write(f'{store_name}')
 
-        # st.write(chunks)
-        embeddings = OpenAIEmbeddings()
-        VectorStore = FAISS.from_texts(chunks, embedding=embeddings)
+        
  
         # if os.path.exists(f"{store_name}.pkl"):
         #     try:
@@ -109,7 +155,7 @@ def main():
 
         #     except (EOFError, FileNotFoundError) as e:
         #         embeddings = OpenAIEmbeddings()
-        #         VectorStore = FAISS.from_texts(chunks, embedding=embeddings).docstore._dict
+        #         VectorStore =FAISS.from_documents( list_document,embeddings) #FAISS.from_texts(chunks, embedding=embeddings)
 
                 
         #         with open(f"{store_name}.pkl", "wb") as f:
@@ -117,16 +163,19 @@ def main():
 
         # else:
         #     embeddings = OpenAIEmbeddings()
-        #     VectorStore = FAISS.from_texts(chunks, embedding=embeddings).docstore._dict
+        #     VectorStore =FAISS.from_documents( list_document,embeddings) #FAISS.from_texts(chunks, embedding=embeddings)
         #     with open(f"{store_name}.pkl", "wb") as f:
         #         pickle.dump(VectorStore, f)
  
-  
- 
+
         # # Accept user questions/query
         query = st.text_input("Ask questions about your PDF file:")
  
         if query:
+            chunks = text_splitter.split_text(text=text)
+            embeddings = OpenAIEmbeddings()
+            VectorStore =FAISS.from_texts(chunks, embedding=embeddings)
+
             docs = VectorStore.similarity_search(query=query, k=3)
  
             llm = OpenAI()
