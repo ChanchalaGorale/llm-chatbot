@@ -144,13 +144,19 @@ def translate_to_english(text, target_lang):
     translated_text = [tokenizer.decode(t, skip_special_tokens=True) for t in translated]
     return translated_text[0]
 
-def function_to_run_on_click(text):
-    if text >= 1:
-        st.write("Thank you for your feedback!")
-    return 
+def preprocess_text(text, max_length=1024):
+    sentences = text.split('. ')
+    processed_text = ""
+    for sentence in sentences:
+        if len(processed_text.split()) + len(sentence.split()) > max_length:
+            break
+        processed_text += sentence + '. '
+    return processed_text.strip()
+
 
 def main():
     load_dotenv()
+    
     st.header("📃 Doc GPT")
 
     st.write("Hello!")
@@ -171,17 +177,16 @@ def main():
             text = clean_text(text)
 
         #summarize text
-        summarizer = pipeline("summarization")
-        summary = summarizer(text, max_length=150, min_length=30, do_sample=False)
+        summarizer = pipeline("summarization" ,model="facebook/bart-large-cnn")
+        summary = summarizer(preprocess_text(text), max_length=150, min_length=30, do_sample=False)
 
         st.title("Summary:")
         st.write(summary[0]['summary_text'])
 
         # tokenize
-        sentences = segment_sentences(text)
-        tokens = [tokenize_text(sentence) for sentence in sentences]
-        if tokens:
-                st.write("Total Tokens Found: ",len(tokens))
+        #sentences = segment_sentences(text)
+        #tokens = [tokenize_text(sentence) for sentence in sentences]
+        
 
         #find entities text
         entities=find_entities(text)
