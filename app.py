@@ -5,6 +5,7 @@ import  PyPDF2
 import pdfplumber
 import pytesseract
 from PIL import Image
+import cv2
 from dotenv import load_dotenv
 import pickle
 from langchain.text_splitter import RecursiveCharacterTextSplitter
@@ -17,6 +18,8 @@ from langchain.callbacks import get_openai_callback
 from transformers import pipeline
 from pdf2image import convert_from_path
 import re
+
+pytesseract.pytesseract.tesseract_cmd = '/opt/homebrew/Cellar/tesseract/5.3.4_1/bin/tesseract'
 
 with st.sidebar:
     st.title("Doc GPT")
@@ -34,12 +37,16 @@ with st.sidebar:
 def pdf_to_text_and_images(pdf_path):
     text_content = ""
     images = []
+
     with pdfplumber.open(pdf_path) as pdf:
+
         for page in pdf.pages:
             text_content += page.extract_text()
-            for image in page.images:
-                image = page.to_image().crop(image)
-                text_content += pytesseract.image_to_string(image)
+           
+            for img in page.images:
+                img_obj = page.to_image().original.crop((img['x0'], img['top'], img['x1'], img['bottom']))
+                text_content += pytesseract.image_to_string(img_obj)
+                
 
     return text_content
 
