@@ -25,39 +25,39 @@ pytesseract.pytesseract.tesseract_cmd = '/opt/homebrew/Cellar/tesseract/5.3.4_1/
 
 nlp = spacy.load("en_core_web_sm")
 
-languages =["English",
-"Chinese",
-"Hindi",
-"Spanish",
-"French",
-"Arabic",
-"Bengali",
-"Russian",
-"Portuguese",
-"Urdu",
-"Indonesian",
-"German",
-"Japanese",
-"Turkish",
-"Cantonese",
-"Vietnamese"]
+# languages =["English",
+# "Chinese",
+# "Hindi",
+# "Spanish",
+# "French",
+# "Arabic",
+# "Bengali",
+# "Russian",
+# "Portuguese",
+# "Urdu",
+# "Indonesian",
+# "German",
+# "Japanese",
+# "Turkish",
+# "Cantonese",
+# "Vietnamese"]
 
-loc_languages ={"English":"en",
-"Chinese":"zh",
-"Hindi":"hi",
-"Spanish":"es",
-"French":"fr",
-"Arabic":"ar",
-"Bengali":"bn",
-"Russian":"ru",
-"Portuguese":"pt",
-"Urdu":"ur",
-"Indonesian":"id",
-"German":"de",
-"Japanese":"ja",
-"Turkish":"tr",
-"Cantonese":"yue",
-"Vietnamese":"vi"}
+# loc_languages ={"English":"en",
+# "Chinese":"zh",
+# "Hindi":"hi",
+# "Spanish":"es",
+# "French":"fr",
+# "Arabic":"ar",
+# "Bengali":"bn",
+# "Russian":"ru",
+# "Portuguese":"pt",
+# "Urdu":"ur",
+# "Indonesian":"id",
+# "German":"de",
+# "Japanese":"ja",
+# "Turkish":"tr",
+# "Cantonese":"yue",
+# "Vietnamese":"vi"}
 
 ner = pipeline("ner")
 
@@ -120,7 +120,10 @@ def segment_sentences(text):
 
 # Tokenization
 def tokenize_text(text):
-    return word_tokenize(text)
+    tokens = []
+    for i in word_tokenize(text):
+        tokens.append(i)
+    return tokens
 
 def find_entities(text):
     doc = nlp(text)
@@ -132,11 +135,11 @@ def find_entities(text):
 
     return entities
 
-def translate_to_english(text, target_lang):
+def translate_to_english(text,):
     lang = detect(text)
     if lang == 'en':
         return text
-    model_name = f'Helsinki-NLP/opus-mt-{lang}-{loc_languages[target_lang]}'
+    model_name = f'Helsinki-NLP/opus-mt-{lang}-en'
     tokenizer = MarianTokenizer.from_pretrained(model_name)
     model = MarianMTModel.from_pretrained(model_name)
     translated = model.generate(**tokenizer(text, return_tensors="pt", padding=True))
@@ -186,7 +189,8 @@ def main():
     # upload a PDF file
     pdf = st.file_uploader("Only PDF files accepted.", type='pdf')
  
-    # st.write(pdf)
+    # if file is uploaded
+
     if pdf is not None:
 
         #extract text
@@ -204,9 +208,11 @@ def main():
         st.write(summary)
 
         # tokenize
-        #sentences = segment_sentences(text)
-        #tokens = [tokenize_text(sentence) for sentence in sentences]
+        sentences = segment_sentences(text)
+        tokens = tokenize_text(". ".join(sentences)) 
         
+        if tokens:
+            st.write("Total tokens extracted: ",len(tokens))
 
         #find entities text
         entities=find_entities(text)
@@ -219,10 +225,10 @@ def main():
             st.write(key_value_pairs)
 
         #ask if use need to traslate the information
-        target_language = st.selectbox("Choose language to traslate document", languages)
-
-        if st.button("Translate"):
-            translation = translate_to_english(unclean_text,  target_language)
+        #target_language = st.selectbox("Choose language to traslate document", languages)
+        
+        if st.button("Translate To English"):
+            translation = translate_to_english(unclean_text)
             st.write(translation)
 
 
@@ -239,6 +245,17 @@ def main():
             chunks = text_splitter.split_text(text=unclean_text)
             embeddings = OpenAIEmbeddings()
             VectorStore =FAISS.from_texts(chunks, embedding=embeddings)
+
+            # if os.path.exists(f"{store_name}.pkl"):
+            #     with open(f"{store_name}.pkl", "rb") as f:
+            #         VectorStore = pickle.load(f)
+           
+
+            # else:
+            #     embeddings = OpenAIEmbeddings()
+            #     VectorStore =FAISS.from_texts(chunks, embedding=embeddings)
+            #     with open(f"{store_name}.pkl", "wb") as f:
+            #         pickle.dump(VectorStore, f)
 
             docs = VectorStore.similarity_search(query=query, k=3)
  
